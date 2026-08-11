@@ -55,9 +55,12 @@ const TODO_STATUS: Record<string, PlanItem['status']> = {
   pending: 'pending',
 };
 
-/** deepagents' built-in `write_todos` IS the plan: it takes the whole list every
- *  call (`{ todos: [{ content, status }] }`, verified against deepagents 1.10),
- *  which is exactly the shape of a `plan` event. Anything unrecognized returns
+/** `write_todos` IS the plan: it takes the whole list every call
+ *  (`{ todos: [{ content, status }] }`, verified against deepagents 1.10 and
+ *  langchain 1.5), which is exactly the shape of a `plan` event. The tool comes
+ *  from langchain's `todoListMiddleware` — default in deepagents up to 1.11,
+ *  Codex-harness-only from 1.12, so callers on 1.12+ wire it themselves; the
+ *  name and args never changed. Anything unrecognized returns
  *  null and stays an ordinary tool call, so a hand-rolled todo tool with another
  *  shape degrades to a `🔧 write_todos…` line rather than an empty plan. */
 export function planItems(name: string, args: unknown): PlanItem[] | null {

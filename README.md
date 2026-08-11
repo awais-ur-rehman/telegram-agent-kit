@@ -260,8 +260,11 @@ rather than reasoned about:
   docs suggest otherwise; the Bot API does not behave that way.)
 
 With `telegram-agent-kit/deepagents` this needs **no wiring at all** — the adapter turns
-deepagents' built-in `write_todos` into `plan` events and labels skill loads (a `read_file`
-on `/skills/<name>/SKILL.md`). Two optional knobs shape the rest:
+`write_todos` into `plan` events and labels skill loads (a `read_file` on
+`/skills/<name>/SKILL.md`). Note that deepagents 1.12 dropped `write_todos` from its
+default middleware stack (it now ships only in the Codex harness profile), so on 1.12+
+pass `middleware: [todoListMiddleware()]` (from `langchain`) to `createDeepAgent` if you
+want plans. Two optional knobs shape the rest:
 
 ```ts
 await runTelegramTurn({
@@ -405,7 +408,7 @@ doesn't, that's an argument for rolling back and reconciling the writes by hand.
   `thread_id`, `thread_ts`, `checkpoint_id`, `checkpoint_ns`, `checkpoint_map`, and `run_id` — plus any
   `__pregel_*` LangGraph internal-execution key — are stripped so the kit retains full control over
   checkpoint routing and execution.
-- Turns deepagents' built-in `write_todos` into `plan` events and labels a skill load (a `read_file`
+- Turns `write_todos` (langchain's todo-list middleware) into `plan` events and labels a skill load (a `read_file`
   on `/skills/<name>/SKILL.md`, how deepagents load skills via progressive disclosure) as
   `🧠 load_skill(\`name\`)…`. This is the **only** place in the kit that knows any tool name; the core
   turn loop knows none. `planItems`, `skillName` and `toolArgs` are exported for reuse.
