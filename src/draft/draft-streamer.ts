@@ -187,15 +187,8 @@ export function createDraftStreamer(deps: DraftStreamerDeps): DraftStreamer {
           timer = null;
         }
         if (!inFlight) return;
-        // Wait for the write to SETTLE — that response is the only thing that
-        // orders it ahead of the final message the caller sends next.
-        // `controller.abort()` cancels OUR fetch; it does not withdraw a
-        // request Telegram already holds, so an abandoned write can still be
-        // applied, and one applied after the reply lands outlives it: the Bot
-        // API has no clear-draft call (an empty `text` renders a "Thinking…"
-        // placeholder, not an erasure), so the stale frame sits above the
-        // answer until its ~30s TTL lapses. Abandoning at the old 1s deadline
-        // made that the routine outcome of an ordinarily slow write.
+        // Wait for the write to settle — its response is what orders it before
+        // the final send. Why, and why the budget is large: `drainMs` docs.
         const drain = delay(k.drainMs);
         try {
           const landed = await Promise.race([
@@ -203,19 +196,11 @@ export function createDraftStreamer(deps: DraftStreamerDeps): DraftStreamer {
             drain.promise.then(() => false),
           ]);
           if (!landed) {
-            // Budget blown means wedged, not slow — `drainMs` sits well above
-            // the Bot API's realistic worst case. Abandoning is still the
-            // lesser evil: holding the turn open here parks the caller's
-            // per-chat turn queue for as long as the socket hangs, and a
-            // transport with no ceiling of its own would park it forever.
-            // Logged because this is now the ONLY path that can strand a draft
-            // over the reply, and a silent one is unobservable after the fact.
+            // Wedged, not slow. Logged — the only path left that can strand a
+            // draft over the reply, and holding the turn open is worse.
             inFlightController?.abort();
             await inFlight?.catch(() => {});
-            log.warn('telegram draft drain abandoned', {
-              chat_id: chatId,
-              drain_ms: k.drainMs,
-            });
+            log.warn('telegram draft drain abandoned', { chat_id: chatId });
           }
         } finally {
           drain.cancel(); // clear the drain timer on both paths — no leak
@@ -225,14 +210,8 @@ export function createDraftStreamer(deps: DraftStreamerDeps): DraftStreamer {
       }
     },
 
-    /** Cancellation, not shutdown-with-ordering: this one abandons the write
-     *  immediately and on purpose. It runs when the turn is already dead, and
-     *  the two callers want opposite things from a delay — a turn cancelled via
-     *  `signal` sends nothing afterwards (so there is no ordering to protect),
-     *  while a turn that errored sends only a fallback NOTICE, which is not
-     *  worth parking the chat's turn queue behind a wedged socket. The cost is
-     *  the `finalize` race in miniature: a late write can strand a draft above
-     *  that notice. Accepted — the notice path is rare and already degraded. */
+    /** Cancellation: abandons the write on purpose — the turn is already dead,
+     *  and only a fallback notice ships after it, if anything. */
     async abort(): Promise<void> {
       try {
         stopped = true;
