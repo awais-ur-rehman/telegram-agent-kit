@@ -6,6 +6,7 @@ import type { ChatResult } from '@langchain/core/outputs';
 import { ChatGenerationChunk } from '@langchain/core/outputs';
 import { tool } from '@langchain/core/tools';
 import { createDeepAgent } from 'deepagents';
+import { todoListMiddleware } from 'langchain';
 import { expect, test } from 'vitest';
 
 import type { PlanItem } from '../../src/bridge/interfaces.ts';
@@ -108,6 +109,11 @@ function makeAgent(name?: string, script: Step[][] = PROSE_SCRIPT) {
   const agent = createDeepAgent({
     model,
     ...(name ? { name } : {}),
+    // deepagents 1.12 dropped `write_todos` from the default middleware stack —
+    // it now ships only in the Codex harness profile — so the tool has to be
+    // wired explicitly for the plan-event path to exist at all. The tool itself
+    // is unchanged (langchain's todoListMiddleware, same name, same args).
+    middleware: [todoListMiddleware()],
     tools: [stubTool('root_tool')],
     subagents: [
       {
