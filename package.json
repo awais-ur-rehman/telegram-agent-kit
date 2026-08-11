@@ -1,6 +1,6 @@
 {
   "name": "telegram-agent-kit",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "Render markdown to Telegram, stream agent replies into live drafts, and drive a snapshot/rollback turn-loop — runtime-agnostic.",
   "type": "module",
   "license": "MIT",

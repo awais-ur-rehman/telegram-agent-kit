@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.9.1 — 2026-08-11
+
+- **A draft write is now acknowledged before the final send, so a stale frame no
+  longer sits above the finished answer.** `finalize()` cut an unfinished draft
+  write loose after a second and sent the reply anyway — but aborting cancels only
+  our own fetch, never a request Telegram already holds, so an abandoned write
+  could still be applied, and one applied *after* the reply can never be cleared
+  (the Bot API has no clear-draft call; an empty `text` renders a "Thinking…"
+  placeholder rather than erasing). The stale frame then lingered for its ~30s TTL.
+  This fired routinely, not exceptionally: the streamer throttles writes to 300ms
+  and keeps one in flight, and the last token almost always starts one, so any Bot
+  API call slower than a second played the race. `drainMs` goes 1000 → 5000, which
+  puts the budget above the API's realistic worst case — tripping it now means a
+  wedged socket rather than a merely slow call — and abandoning is logged
+  (`telegram draft drain abandoned`), since it is the only remaining path that can
+  strand a draft over the reply. `abort()` deliberately still does not wait: the
+  turn is already dead there and sends nothing afterwards.
+- **`BotClient` implementations are asked to bound their own calls.** The kit's
+  timer can only stop waiting; the transport is the one layer that can actually
+  cancel a request. The README's example transport gained a ceiling of its own
+  (`AbortSignal.timeout` + `AbortSignal.any`) instead of passing the caller's
+  signal straight through. A consumer with a bounded transport can close the drain
+  race completely by raising `drainMs` above its own ceiling.
+- **`/deepagents` on deepagents 1.12+ needs `todoListMiddleware()` passed
+  explicitly for plan events.** 1.12 dropped `write_todos` from its default
+  middleware stack (it now ships only in the Codex harness profile), so the tool
+  call vanishes into the tools node with no plan event. The tool itself is
+  unchanged — name and args — so `planItems` needed no change; pass
+  `middleware: [todoListMiddleware()]` (from `langchain`) to `createDeepAgent` to
+  get plans back. README updated.
+
 ## 0.9.0 — 2026-08-01
 
 - **A `429` no longer kills the draft — it backs off by `retry_after`.** Throttling
