@@ -187,6 +187,8 @@ export function createDraftStreamer(deps: DraftStreamerDeps): DraftStreamer {
           timer = null;
         }
         if (!inFlight) return;
+        // Wait for the write to settle — its response is what orders it before
+        // the final send. Why, and why the budget is large: `drainMs` docs.
         const drain = delay(k.drainMs);
         try {
           const landed = await Promise.race([
@@ -194,8 +196,11 @@ export function createDraftStreamer(deps: DraftStreamerDeps): DraftStreamer {
             drain.promise.then(() => false),
           ]);
           if (!landed) {
+            // Wedged, not slow. Logged — the only path left that can strand a
+            // draft over the reply, and holding the turn open is worse.
             inFlightController?.abort();
             await inFlight?.catch(() => {});
+            log.warn('telegram draft drain abandoned', { chat_id: chatId });
           }
         } finally {
           drain.cancel(); // clear the drain timer on both paths — no leak
@@ -205,6 +210,8 @@ export function createDraftStreamer(deps: DraftStreamerDeps): DraftStreamer {
       }
     },
 
+    /** Cancellation: abandons the write on purpose — the turn is already dead,
+     *  and only a fallback notice ships after it, if anything. */
     async abort(): Promise<void> {
       try {
         stopped = true;

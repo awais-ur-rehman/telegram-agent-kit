@@ -92,6 +92,10 @@ These are intentional and enforced by tests — preserve them when editing.
   Requires the caller's transport to pass the Bot API `parameters` into
   `TelegramApiError`. **Only the draft path does this** — in `send.ts` a 429 is still a
   non-400 and propagates.
+- **A draft write must be acknowledged before the final send** — `finalize()`
+  waits for it to settle; `drainMs` is a wedged-socket backstop, not a routine
+  budget, and tripping it logs `telegram draft drain abandoned`. Rationale lives
+  on the `drainMs` field in `src/draft/constants.ts`.
 - **`runTelegramTurn` never throws out** — every failure path is caught and logged.
   Ordering matters: snapshot happens only *after* `preStream` (so a skipped turn leaves
   no rollback target); rollback fires only if a snapshot was taken and the turn did not

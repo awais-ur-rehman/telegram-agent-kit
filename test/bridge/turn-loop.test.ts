@@ -147,9 +147,10 @@ test('shouldRollback gets the threadId, the turn start and the error text', asyn
   const seen: RollbackContext[] = [];
   const before = Date.now();
   const d = deps({
-    // A domain clock, as a real caller injects (machine-spirit feeds the kit the
-    // Telegram message's SEND time so a backlogged message is filed into the day
-    // it was sent). `startedAt` must not be that clock.
+    // A domain clock, as a real caller injects (feeding the kit the Telegram
+    // message's SEND time, so a message backlogged across a day boundary is
+    // filed into the day it was actually sent). `startedAt` must not be that
+    // clock.
     now: () => 1_700_000_000_000,
     agentStream: failingStream,
     hooks: {

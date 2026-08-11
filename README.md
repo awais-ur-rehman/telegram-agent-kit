@@ -97,13 +97,17 @@ await queue(chatKey, () => runTelegramTurn({
   log: console,
 }));
 
-// Thin transport helper.
+// Thin transport helper. Bound every call with a ceiling of your own: the kit
+// awaits a draft write's response because that response is the only thing
+// ordering it ahead of the message that replaces it, and only the transport can
+// actually cancel a request — the kit's `drainMs` can stop waiting, not sending.
 async function call(method: string, body: unknown, signal?: AbortSignal) {
+  const ceiling = AbortSignal.timeout(30_000);
   const res = await fetch(`https://api.telegram.org/bot${TOKEN}/${method}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
-    signal,
+    signal: signal ? AbortSignal.any([signal, ceiling]) : ceiling,
   });
   if (!res.ok) {
     const j = await res.json().catch(() => ({}));
@@ -197,7 +201,7 @@ You implement these; the kit drives them.
 
 | Interface      | Shape                                                                 | Role |
 | -------------- | --------------------------------------------------------------------- | ---- |
-| `BotClient`    | `sendMessage`, `sendRichMessage`, `sendPhoto`, `sendChatAction`, `sendMessageDraft`, `sendRichMessageDraft` | Raw transport. Each throws `TelegramApiError` on a Bot API error. |
+| `BotClient`    | `sendMessage`, `sendRichMessage`, `sendPhoto`, `sendChatAction`, `sendMessageDraft`, `sendRichMessageDraft` | Raw transport. Each throws `TelegramApiError` on a Bot API error, and bounds itself with a ceiling of its own — only the transport can cancel a request. |
 | `AgentStream`  | `(input, { threadId, signal, configurable }) => AsyncIterable<RenderEvent>` | Your agent. `threadId` **must** reach it so the checkpointer writes to the snapshotted thread. `configurable` is an optional pass-through bag forwarded verbatim from `runTelegramTurn`'s `configurable` option. |
 | `Checkpointer` | `{ snapshot(threadId), rollback(threadId, id) }`                       | Per-thread snapshot/rollback for clean recovery on a failed turn. |
 | `ThreadStore`  | `{ resolve(chatKey, now), touch(chatKey, now) }`                      | Maps `{ chatId, agentId }` to a thread id (so two bots over one chat id don't collide). |

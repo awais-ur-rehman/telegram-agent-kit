@@ -7,7 +7,9 @@ export type Logger = {
 
 /** Raw Bot API transport primitives — one HTTP call each, NO chunking /
  *  rendering / fallback (the kit owns those). Each throws TelegramApiError
- *  (see ../errors.ts) on a Bot API error. */
+ *  (see ../errors.ts) on a Bot API error. Bound every call with a ceiling of
+ *  your own (`AbortSignal.timeout`, combined with any signal passed in) — only
+ *  the transport can cancel a request; the kit can only stop waiting. */
 export type BotClient = {
   sendMessage(
     p: { chatId: number; text: string; parseMode?: 'HTML' },

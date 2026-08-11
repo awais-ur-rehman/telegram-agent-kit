@@ -21,16 +21,6 @@ function deferred(): Deferred {
   return { promise, resolve, reject };
 }
 
-const noopLog = {
-  debug() {},
-  info() {},
-  warn() {},
-  error() {},
-  child() {
-    return noopLog;
-  },
-} as never;
-
 function setup(opts: { cancelThrows?: boolean; rich?: boolean } = {}) {
   let clock = 0;
   let tickFn: (() => void) | null = null;
@@ -38,8 +28,17 @@ function setup(opts: { cancelThrows?: boolean; rich?: boolean } = {}) {
   const drainCancel = { called: false };
   const drafts: Array<{ method: 'rich' | 'plain'; text: string }> = [];
   const typing: number[] = [];
+  const warns: string[] = [];
+  let aborted = 0;
   let lastDraft: Deferred | null = null;
   let drain: Deferred | null = null;
+
+  const log = {
+    warn(msg: string) {
+      warns.push(msg);
+    },
+    error() {},
+  } as never;
 
   const record =
     (method: 'rich' | 'plain') =>
@@ -48,9 +47,14 @@ function setup(opts: { cancelThrows?: boolean; rich?: boolean } = {}) {
       const d = deferred();
       lastDraft = d;
       if (signal)
-        signal.addEventListener('abort', () => d.reject(new Error('aborted')), {
-          once: true,
-        });
+        signal.addEventListener(
+          'abort',
+          () => {
+            aborted += 1;
+            d.reject(new Error('aborted'));
+          },
+          { once: true },
+        );
 
       return d.promise;
     };
@@ -59,7 +63,7 @@ function setup(opts: { cancelThrows?: boolean; rich?: boolean } = {}) {
     chatId: 111,
     draftId: 7,
     rich: opts.rich ?? true,
-    log: noopLog,
+    log,
     client: {
       sendRichMessageDraft: record('rich'),
       sendMessageDraft: record('plain'),
@@ -94,6 +98,8 @@ function setup(opts: { cancelThrows?: boolean; rich?: boolean } = {}) {
     typing,
     cancelInterval,
     drainCancel,
+    warns,
+    abortCount: () => aborted,
     advance: (ms: number) => {
       clock += ms;
     },
@@ -214,13 +220,34 @@ describe('DraftStreamer', () => {
     expect(s.drafts.length).toBe(1); // no clear send
   });
 
-  test('finalize abandons a slow write at the drain budget', async () => {
+  test('finalize waits out a write that settles inside the drain budget', async () => {
+    const s = setup();
+    s.streamer.push('a'); // inFlight pending
+    let settled = false;
+    const p = s.streamer.finalize().then(() => {
+      settled = true;
+    });
+    await s.settle();
+    // The caller sends the final message the moment finalize() resolves, so
+    // resolving here would be the bug: the write is still unacknowledged.
+    expect(settled).toBe(false);
+    s.resolveDraft(); // lands while finalize is still waiting
+    await p;
+    expect(s.abortCount()).toBe(0); // never cut loose → ordering preserved
+    expect(s.drainCancel.called).toBe(true);
+  });
+
+  test('finalize abandons a wedged write at the drain budget, loudly', async () => {
     const s = setup();
     s.streamer.push('a'); // inFlight pending, never resolved
     const p = s.streamer.finalize();
     s.resolveDrain(); // budget elapses first → abort + proceed
     await p;
     expect(s.drainCancel.called).toBe(true);
+    expect(s.abortCount()).toBe(1);
+    // The one remaining path that can strand a draft over the reply must be
+    // observable — a silent abandon is unobservable after the fact.
+    expect(s.warns).toContain('telegram draft drain abandoned');
   });
 
   test('abort cancels locally, sends no clear, and goes silent', async () => {
