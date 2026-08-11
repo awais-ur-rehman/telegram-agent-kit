@@ -92,6 +92,17 @@ These are intentional and enforced by tests — preserve them when editing.
   Requires the caller's transport to pass the Bot API `parameters` into
   `TelegramApiError`. **Only the draft path does this** — in `send.ts` a 429 is still a
   non-400 and propagates.
+- **A draft write must be acknowledged before the final send.** Its HTTP response
+  is the only thing ordering it ahead of the message that replaces it, so
+  `finalize()` waits for the in-flight write to *settle* rather than cutting it
+  loose at a deadline. Aborting cannot un-apply a write Telegram already holds,
+  and there is no clear-draft call in the Bot API (an empty `text` renders a
+  “Thinking…” placeholder, not an erasure) — a draft applied after the reply
+  hangs over it for its ~30s TTL. `drainMs` is a wedged-socket backstop set above
+  the API's realistic worst case, not a routine budget; tripping it logs
+  `telegram draft drain abandoned`. `abort()` deliberately does *not* wait — see
+  its comment. The real ceiling belongs in the caller's transport, which is the
+  only layer that can actually cancel a request.
 - **`runTelegramTurn` never throws out** — every failure path is caught and logged.
   Ordering matters: snapshot happens only *after* `preStream` (so a skipped turn leaves
   no rollback target); rollback fires only if a snapshot was taken and the turn did not

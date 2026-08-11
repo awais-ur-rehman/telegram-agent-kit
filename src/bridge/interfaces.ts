@@ -7,7 +7,16 @@ export type Logger = {
 
 /** Raw Bot API transport primitives — one HTTP call each, NO chunking /
  *  rendering / fallback (the kit owns those). Each throws TelegramApiError
- *  (see ../errors.ts) on a Bot API error. */
+ *  (see ../errors.ts) on a Bot API error.
+ *
+ *  Bound every call with a ceiling of your own (`AbortSignal.timeout`, combined
+ *  with any signal passed in). The kit awaits the draft methods' responses on
+ *  purpose — that response is the only thing ordering a draft write ahead of
+ *  the message that replaces it, and the kit's own `drainMs` can only stop
+ *  WAITING for a request, never stop the request: by the time it fires,
+ *  Telegram holds the whole POST and will apply it regardless. So a transport
+ *  that can hang forever turns `drainMs` into the sole backstop, and every trip
+ *  of it risks a draft landing on top of the finished reply. */
 export type BotClient = {
   sendMessage(
     p: { chatId: number; text: string; parseMode?: 'HTML' },
