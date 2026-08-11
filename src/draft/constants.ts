@@ -1,8 +1,8 @@
 /** DraftStreamer tunables — overridable via DraftStreamerDeps.constants.
- *  Defaults mirror the machine-spirit values (the draft-streaming design
- *  spec): native drafts tolerate frequent writes; the keepalive must beat the
- *  ~30s draft-expiry window; the typing action must re-fire before its ~5s
- *  lifetime lapses. */
+ *  The defaults are the ones this engine was extracted with, and each is pinned
+ *  to an observed Telegram behaviour rather than picked: native drafts tolerate
+ *  frequent writes; the keepalive must beat the ~30s draft-expiry window; the
+ *  typing action must re-fire before its ~5s lifetime lapses. */
 export type DraftConstants = {
   throttleMs: number;
   keepaliveMs: number;
