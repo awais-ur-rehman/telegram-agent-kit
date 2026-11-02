@@ -6,7 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `telegram-agent-kit` is a published npm library (ESM-only) that wires LLM agents to
 Telegram. Its modules, layers, patterns and invariants are in
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Its product decisions — the
+direction, what it will not do, the PDRs — are in
+[`docs/PRODUCT.md`](docs/PRODUCT.md).
 
 Before a spec, a plan or the first edit of a new feature, read
 `docs/ARCHITECTURE.md`. At the start of a new feature, and for a decision, load
