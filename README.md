@@ -131,8 +131,8 @@ async function call(method: string, body: unknown, signal?: AbortSignal) {
 ## How it works
 
 The kit is three layers plus one optional adapter. The dependency direction is
-strictly **Bridge → Draft → Formatting**; lower layers never import higher ones,
-and the core never imports the adapter.
+strictly **Bridge → Draft → Formatting**; lower layers never import higher ones at
+runtime, and the core never imports the adapter.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -159,8 +159,8 @@ and the trailing-cover photo flow.
 
 ## One turn at a time per chat
 
-**Turns on the same chat must not overlap.** The kit holds no state between turns, so
-nothing inside `runTelegramTurn` serializes them — that is `createTurnQueue`'s job, and
+**Turns on the same chat must not overlap.** `runTelegramTurn` holds no state between
+turns, so nothing inside it serializes them — that is `createTurnQueue`'s job, and
 it is the supported way to drive turns:
 
 ```ts
@@ -193,7 +193,8 @@ returns. Both are inherent to a mutex, not specific to this one.
 A queue instance is per-process; a bot on several instances needs a shared lock, which is
 the same decision its `ThreadStore` already forces. And a new message always *waits* for
 the running turn — it never supersedes it. Superseding means aborting mid-flight, and an
-aborted turn is rolled back unconditionally, erasing tool writes that already landed.
+aborted turn is rolled back without the `shouldRollback` veto, erasing tool writes that
+already landed.
 
 ## The four interfaces
 
