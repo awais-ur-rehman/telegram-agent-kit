@@ -14,9 +14,10 @@ export function chunkText(text: string): string[] {
     let cut = rest.lastIndexOf('\n\n', CHUNK_TARGET);
     if (cut < 1) cut = rest.lastIndexOf('\n', CHUNK_TARGET);
     if (cut < 1) cut = CHUNK_TARGET;
-    // never split between a high and low surrogate
+    // Never split a surrogate pair. A cut at 1 means index 1 is a newline,
+    // so any high surrogate before it is unpaired and can be kept.
     const code = rest.charCodeAt(cut - 1);
-    if (code >= 0xd800 && code <= 0xdbff) cut -= 1;
+    if (cut > 1 && code >= 0xd800 && code <= 0xdbff) cut -= 1;
     chunks.push(rest.slice(0, cut));
     rest = rest.slice(cut);
   }

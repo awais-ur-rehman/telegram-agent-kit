@@ -1,3 +1,6 @@
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import ts from 'typescript';
 import { describe, expect, test } from 'vitest';
 
 import { chunkRich, chunkText, safeSlice } from '../../src/format/chunk.ts';
@@ -22,6 +25,31 @@ describe('chunkText', () => {
       expect([...c].every((ch) => ch === '😀')).toBe(true);
     }
     expect(chunks.join('')).toBe(emoji.repeat(2100));
+  });
+  test('makes progress after a lone high surrogate before a newline', () => {
+    const text = `\uD800\n${'a'.repeat(5000)}`;
+    // Bound the subprocess because the original bug is a synchronous loop.
+    const source = readFileSync(
+      new URL('../../src/format/chunk.ts', import.meta.url),
+      'utf8',
+    );
+    const { outputText } = ts.transpileModule(source, {
+      compilerOptions: { module: ts.ModuleKind.ESNext },
+    });
+    const program = `${outputText}\nconsole.log(JSON.stringify(chunkText(${JSON.stringify(text)})));`;
+    const output = execFileSync(
+      process.execPath,
+      ['--input-type=module', '--eval', program],
+      {
+        encoding: 'utf8',
+        timeout: 1000,
+      },
+    );
+    expect(JSON.parse(output)).toEqual([
+      '\uD800',
+      `\n${'a'.repeat(3999)}`,
+      'a'.repeat(1001),
+    ]);
   });
   test('returns a single chunk for exactly the 4096 limit', () => {
     const text = 'a'.repeat(4096);
